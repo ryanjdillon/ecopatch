@@ -1,0 +1,6 @@
+# swap files
+*.swp
+*.swo
+
+# binary files
+*.pyc
