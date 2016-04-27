@@ -5,7 +5,6 @@ def run_simulation():
     Colin Whitcomb's book 'Dynamic Modeling in Behavioral Ecology', 1998,
     Chapter 2.
     '''
-    import numpy
 
     # State parameters
     state = dict()
@@ -47,11 +46,11 @@ def process_timestep(t, x_crit, x_max, patches, F0, F1, D):
     # Calculate probability of survival for each energy reserve and patch
     for x in range(x_crit+1, x_max+1, 1):
         vm = 0 # max energetic state per patch
-        for p in range(len(patches)):
-            A = patches[p]['cost']
-            B = patches[p]['prob_pred']
-            L = patches[p]['prob_food']
-            Y = patches[p]['state_increment']
+        for i in range(len(patches)):
+            A = patches[i]['cost']
+            B = patches[i]['prob_pred']
+            L = patches[i]['prob_food']
+            Y = patches[i]['state_increment']
 
             v = compute_v(x, A, B, L, Y, x_crit, x_max, F1)
 
@@ -59,7 +58,7 @@ def process_timestep(t, x_crit, x_max, patches, F0, F1, D):
             if v > vm:
                 vm = v
                 F0[x] = v
-                D[x]  = p+1
+                D[x]  = i+1 # correct index to appear same as book
 
     # STEP 3 - Print fitness value and optimal index with t
     print_vals(x_crit, x_max, F0, F1, D)
@@ -75,7 +74,7 @@ def process_timestep(t, x_crit, x_max, patches, F0, F1, D):
 
 
 def init_f(x_crit, x_max):
-    '''Initialize f0, f1, and optimal patch index arrays'''
+    '''Initialize fitness arrays (F0 & F1) and optimal patch index array (D)'''
     import numpy
 
     #TODO could improve with numpy filtering
@@ -140,7 +139,7 @@ def new_patch(cost, prob_pred, prob_food, state_increment, expected):
 
 
 def print_vals(x_crit, x_max, F0, F1, D):
-    '''Show values for F0, D'''
+    '''Show values for x, F0, F1, D'''
 
     print('%3s %6s %6s %6s' % ('x', 'F0', 'F1', 'D'))
     for x in range(x_crit+1, x_max+1, 1):
