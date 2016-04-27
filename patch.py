@@ -1,16 +1,18 @@
-def run_simulation(n_timesteps, n_organisms, x_crit, x_max, ):
-    '''Loop throu timesteps and individuals'''
+def run_simulation():
+    '''Loop through timesteps and individuals
+
+    This code is written following the algorithm pseudo-code presented in Mark Mangel and
+    Colin Whitcomb's book 'Dynamic Modeling in Behavioral Ecology', 1998,
+    Chapter 2.
+    '''
+    import numpy
 
     # State parameters
     state = dict()
-    state['n_timesteps'] = 20 # T / "Horizon" / max. time-step
-    state['x_crit'] = 3 # critical state value, forager dies
-    state['x_max'] = 10 # max state value, at energy capacity
-    state['mod'] = 1 # param. for gradual F(x,T,T) ??
-
-    # TODO describe
-    energy_reserves = range(0, x_max+1, mod) # value 1-10
-    init_reserve = 6
+    n_timesteps = 20 # T / "Horizon" / max. time-step
+    x_crit = 3 # critical state value, forager dies
+    x_max = 10 # max state value, at energy capacity
+    mod = 1 # param. for gradual F(x,T,T) #TODO not used
 
     # Patch parameters
     cost = [1, 1, 1] # alpha
@@ -20,97 +22,92 @@ def run_simulation(n_timesteps, n_organisms, x_crit, x_max, ):
     expected = [0.0, 1.2, 3.3]
 
     # Create patch array
+    print('\nCreate patches...')
     patches = list()
     for (A, B, L, Y, E) in zip(cost, prob_pred, prob_food, state_increment, expected):
-        patches.append(new_patch(A, B, L, Y, EA))
+        patches.append(new_patch(A, B, L, Y, E))
 
-    # Init organisms
-    organisms = list()
-    for _ in range(n_organisms):
-        organisms.append({'alive': 1,
-                          'reserve': init_reserve,
-                          'food':,
-                          'new_state':,})
+    # STEP 1 - initialize fitness arrays
+    print('\nInitialize vectors...')
+    F0, F1, D = init_f(x_crit, x_max)
+    print_vals(x_crit, x_max, F0, F1, D)
 
-    # STEP 1. - initialize f vectors
-    F0 = dict() # F(x,t,T) - i.e. terminal F
-    F1 = dict() # F(x,t+1,T) - i.e. dynamic F
-
-    D = dict() # optimal patch index
-
-    for x in range(x_crit, x_max, 1):
-        F0[x] = chop(x, x_crit, x_max)
-        #TODO F1?
-
+    # STEP 2 - Iterate over timesteps, getting max fitness values
+    t = n_timesteps
     while t > 0:
-        # STEP 2. - Heart of algorithm
-        for x in range(x_crit+1, x_max, 1):
-            vm = 0
-            for p in range(n_patches):
-                A = patches[p]['cost']
-                B = patches[p]['prob_pred']
-                L = patches[p]['prob_food']
-                Y = patches[p]['state_increment']
-                v = compute_state(x, A, B, L, Y, x_crit, x_max, F1):
-                # Get maximum VM
-                if v > vm:
-                    vm = v
-                    D[x] = p
+        print('\ntime '+str(t)+'\n')
+        t, F0, F1, D = process_timestep(t, x_crit, x_max, patches, F0, F1, D)
 
-        F0[x_crit] = 0
-
-        #STEP 3. - print value of t and values of D(x)
-        for x in range(x_crit+1, C, 1):
-            print('D['+x+']: ', D[x])
-            print('F0['+x+']: ', D[x])
-
-        # STEP 4.
-        for x in range(0, x_max, 1):
-            F1[x] = F0[x]
-
-        # STEP 5.
-        t -= 1
-
-    return None
+    return F0, F1
 
 
-def new_patch(cost, prob_pred, prob_food, state_increment, expected):
-    '''Create new patch dictionary'''
+def process_timestep(t, x_crit, x_max, patches, F0, F1, D):
+    '''Iterate over one timestep'''
 
-    patch = dict()
-    patch['cost'] = cost
-    patch['prob_pred'] = prob_pred
-    patch['prob_food'] = prob_food
-    patch['state_increment'] = state_increment
-    patch['expected'] = expected
+    # Calculate probability of survival for each energy reserve and patch
+    for x in range(x_crit+1, x_max+1, 1):
+        vm = 0 # max energetic state per patch
+        for p in range(len(patches)):
+            A = patches[p]['cost']
+            B = patches[p]['prob_pred']
+            L = patches[p]['prob_food']
+            Y = patches[p]['state_increment']
 
-    return patch
+            v = compute_v(x, A, B, L, Y, x_crit, x_max, F1)
+
+            # Save maximum fitness, and index location
+            if v > vm:
+                vm = v
+                F0[x] = v
+                D[x]  = p+1
+
+    # STEP 3 - Print fitness value and optimal index with t
+    print_vals(x_crit, x_max, F0, F1, D)
+
+    # STEP 4 - cope F0 to F1, updates fitness function to F(x,t,T)
+    for x in range(0, x_max+1, 1):
+        F1[x] = F0[x]
+
+    # STEP 5 - reduce timestep
+    t -= 1
+
+    return t, F0, F1, D
+
+
+def init_f(x_crit, x_max):
+    '''Initialize f0, f1, and optimal patch index arrays'''
+    import numpy
+
+    #TODO could improve with numpy filtering
+
+    F0 = numpy.zeros((x_max+1)) # F(x,t,T) ; basic units of x
+    F1 = numpy.zeros((x_max+1)) # F(x,t+1,T) ; basic units of x
+    D  = numpy.zeros((x_max+1)) # optimal patch index
+
+    # Set values of x over critical value to 1 (alive)
+    for x in range(x_crit, x_max+1, 1):
+        if x > x_crit:
+            F1[x] = 1
+
+    return F0, F1, D
 
 
 def compute_v(x, A, B, L, Y, x_crit, x_max, F1):
-    '''compute V_i
+    '''Compute fitness (prob. of survival) for a given state (energy reserve)
 
-    Chapter 2 algorithm, step2
+    Greater energy reserves result in increased fitness.
+
+    v: probability of survival
+    (1-B): probability surviving predation
+    L:     probability of finding food
+    (1-L): probabililty of not finding food
     x prime = chop(x-A+Yi, x_crit, x_max)
     x double prime = chop(x-A, x_crit, x_max)
     '''
 
-
-    v_patch = (1-B)*(L*f1[chop(x-A+Y, x_crit, x_max)] + \
-                     (1-L)*F1[chop(x-A, x_crit, x_max)])
-
-    return v_patch
-
-
-def select_patch(n_patches, patch_params):
-
-    for i in range(n_patches):
-        if x > x_crit:
-            f0.append(1)
-            f1.append(0)
-        elif x <= x_crit:
-            f0.append(0)
-            f1.append(1)
+    v = (1-B)*(L*F1[chop(x-A+Y, x_crit, x_max)] + \
+               (1-L)*F1[chop(x-A, x_crit, x_max)])
+    return v
 
 
 def chop(x, x_crit, x_max):
@@ -129,3 +126,26 @@ def chop(x, x_crit, x_max):
     return x_out
 
 
+def new_patch(cost, prob_pred, prob_food, state_increment, expected):
+    '''Create new patch dictionary'''
+
+    patch = dict()
+    patch['cost'] = cost
+    patch['prob_pred'] = prob_pred
+    patch['prob_food'] = prob_food
+    patch['state_increment'] = state_increment
+    patch['expected'] = expected
+
+    return patch
+
+
+def print_vals(x_crit, x_max, F0, F1, D):
+    '''Show values for F0, D'''
+
+    print('%3s %6s %6s %6s' % ('x', 'F0', 'F1', 'D'))
+    for x in range(x_crit+1, x_max+1, 1):
+        print('%3.0f, %6.3f, %6.3f, %6.3f' % (x, F0[x], F1[x], D[x]))
+
+
+if __name__ == '__main__':
+    F0, F1 = run_simulation()
