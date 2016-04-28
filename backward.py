@@ -1,35 +1,19 @@
-def simulation():
+def simulation(n_timesteps, x_crit, x_max, cost, prob_pred, prob_food,
+        state_increment, expected, display=True, log=True):
     '''Loop through timesteps and individuals
 
     This code is written following the algorithm pseudo-code presented in Mark Mangel and
     Colin Whitcomb's book 'Dynamic Modeling in Behavioral Ecology', 1998,
     Chapter 2.
+
+    Variations in state are in whole increments of 1. This could be configured
+    to be more general.
     '''
     import numpy
 
-    # State parameters
-    state = dict()
-    n_timesteps = 20 # T / "Horizon" / max. time-step
-    x_crit = 3 # critical state value, forager dies
-    x_max = 10 # max state value, at energy capacity
-    mod = 1 # param. for gradual F(x,T,T) #TODO not used
-
-    # Patch parameters
-    cost = [1, 1, 1] # alpha
-    prob_pred = [0.000, 0.004, 0.020] # beta
-    prob_food = [0.0, 0.4, 0.6] # lambda
-    state_increment = [0, 3, 5] # epsilon
-    expected = [0.0, 1.2, 3.3]
-
-    #TODO temp logging params
-    display = True
-    log = True
-
     # Create patch array
     print('\nCreate patches...')
-    patches = list()
-    for (A, B, L, Y, E) in zip(cost, prob_pred, prob_food, state_increment, expected):
-        patches.append(new_patch(A, B, L, Y, E))
+    get_patches(cost, prob_pred, prob_food, state_increment, expected)
 
     # STEP 1 - initialize fitness arrays
     print('\nInitialize vectors...')
@@ -71,8 +55,6 @@ def simulation():
 def init_f(x_crit, x_max):
     '''Initialize fitness arrays (F0 & F1) and optimal patch index array (D)'''
     import numpy
-
-    #TODO could improve with numpy filtering
 
     F0 = numpy.zeros((x_max+1)) # F(x,t,T) ; basic units of x
     F1 = numpy.zeros((x_max+1)) # F(x,t+1,T) ; basic units of x
@@ -143,20 +125,23 @@ def chop(x, x_crit, x_max):
     return x_out
 
 
-def new_patch(cost, prob_pred, prob_food, state_increment, expected):
-    '''Create new patch dictionary'''
+def get_patches(cost, prob_pred, prob_food, state_increment, expected):
+    '''Create a list of patch dictionaries'''
 
-    patch = dict()
-    patch['cost'] = cost
-    patch['prob_pred'] = prob_pred
-    patch['prob_food'] = prob_food
-    patch['state_increment'] = state_increment
-    patch['expected'] = expected
+    patches = list()
+    for (A, B, L, Y, E) in zip(cost, prob_pred, prob_food, state_increment, expected):
+        patch = {'cost':A,
+                 'prob_pred':B,
+                 'prob_food':L,
+                 'state_increment':Y,
+                 'expected':E
+                 }
+        patches.append(patch)
 
-    return patch
+    return patches
 
 
-def log_vals(t, x_crit, x_max, F0, F1, D, landscape, log=False):
+def log_vals(t, x_crit, x_max, F0, F1, D, landscape):
     '''Save fitness values to array for archiving'''
 
     for x in range(0, x_max, 1):
@@ -181,4 +166,19 @@ def print_vals(t, x_crit, x_max, F0, F1, D):
 
 
 if __name__ == '__main__':
-    landscape = run_simulation()
+
+    # State parameters
+    n_timesteps = 20 # T / "Horizon" / max. time-step
+    x_crit = 3 # critical state value, forager dies
+    x_max = 10 # max state value, at energy capacity
+
+    # Patch parameters
+    cost = [1, 1, 1] # alpha
+    prob_pred = [0.000, 0.004, 0.020] # beta
+    prob_food = [0.0, 0.4, 0.6] # lambda
+    state_increment = [0, 3, 5] # epsilon
+    expected = [0.0, 1.2, 3.3]
+
+    landscape = simulation(n_timesteps, x_crit, x_max, cost, prob_pred,
+                           prob_food, state_increment, expected,
+                           display=True, log=True)
