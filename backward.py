@@ -1,10 +1,11 @@
-def run_simulation():
+def simulation():
     '''Loop through timesteps and individuals
 
     This code is written following the algorithm pseudo-code presented in Mark Mangel and
     Colin Whitcomb's book 'Dynamic Modeling in Behavioral Ecology', 1998,
     Chapter 2.
     '''
+    import numpy
 
     # State parameters
     state = dict()
@@ -20,6 +21,10 @@ def run_simulation():
     state_increment = [0, 3, 5] # epsilon
     expected = [0.0, 1.2, 3.3]
 
+    #TODO temp logging params
+    display = True
+    log = True
+
     # Create patch array
     print('\nCreate patches...')
     patches = list()
@@ -29,18 +34,59 @@ def run_simulation():
     # STEP 1 - initialize fitness arrays
     print('\nInitialize vectors...')
     F0, F1, D = init_f(x_crit, x_max)
-    print_vals(x_crit, x_max, F0, F1, D)
+
+    # Print and/or log fitness values
+    if display:
+        print_vals('0', x_crit, x_max, F0, F1, D)
+    if log:
+        # one row for each x in timestep - t, x, F0, F1, D
+        landscape = numpy.zeros((n_timesteps*(x_max), 5))
+        log_vals(0, x_crit, x_max, F0, F1, D, landscape)
 
     # STEP 2 - Iterate over timesteps, getting max fitness values
     t = n_timesteps
     while t > 0:
-        print('\ntime '+str(t)+'\n')
-        t, F0, F1, D = process_timestep(t, x_crit, x_max, patches, F0, F1, D)
+        F0, D = max_v(x_crit, x_max, patches, F0, F1, D)
 
-    return F0, F1
+        # STEP 3 - Print/log fitness value and optimal index with t
+        if display:
+            print_vals(t, x_crit, x_max, F0, F1, D)
+        if log:
+            landscape = log_vals(t, x_crit, x_max, F0, F1, D, landscape)
+
+        # STEP 4 - Copy F0 to F1, updates fitness function to F(x,t,T)
+        for x in range(0, x_max+1, 1):
+            F1[x] = F0[x]
+
+        # STEP 5 - Reduce timestep
+        t -= 1
+
+    # Save landscape array to binary numpy file for retrieval
+    if log:
+        numpy.save("landscape.npy", landscape)
+
+    return landscape
 
 
-def process_timestep(t, x_crit, x_max, patches, F0, F1, D):
+def init_f(x_crit, x_max):
+    '''Initialize fitness arrays (F0 & F1) and optimal patch index array (D)'''
+    import numpy
+
+    #TODO could improve with numpy filtering
+
+    F0 = numpy.zeros((x_max+1)) # F(x,t,T) ; basic units of x
+    F1 = numpy.zeros((x_max+1)) # F(x,t+1,T) ; basic units of x
+    D  = numpy.zeros((x_max+1)) # optimal patch index
+
+    # Set values of x over critical value to 1 (alive)
+    for x in range(x_crit, x_max+1, 1):
+        if x > x_crit:
+            F1[x] = 1
+
+    return F0, F1, D
+
+
+def max_v(x_crit, x_max, patches, F0, F1, D):
     '''Iterate over one timestep'''
 
     # Calculate probability of survival for each energy reserve and patch
@@ -60,35 +106,7 @@ def process_timestep(t, x_crit, x_max, patches, F0, F1, D):
                 F0[x] = v
                 D[x]  = i+1 # correct index to appear same as book
 
-    # STEP 3 - Print fitness value and optimal index with t
-    print_vals(x_crit, x_max, F0, F1, D)
-
-    # STEP 4 - cope F0 to F1, updates fitness function to F(x,t,T)
-    for x in range(0, x_max+1, 1):
-        F1[x] = F0[x]
-
-    # STEP 5 - reduce timestep
-    t -= 1
-
-    return t, F0, F1, D
-
-
-def init_f(x_crit, x_max):
-    '''Initialize fitness arrays (F0 & F1) and optimal patch index array (D)'''
-    import numpy
-
-    #TODO could improve with numpy filtering
-
-    F0 = numpy.zeros((x_max+1)) # F(x,t,T) ; basic units of x
-    F1 = numpy.zeros((x_max+1)) # F(x,t+1,T) ; basic units of x
-    D  = numpy.zeros((x_max+1)) # optimal patch index
-
-    # Set values of x over critical value to 1 (alive)
-    for x in range(x_crit, x_max+1, 1):
-        if x > x_crit:
-            F1[x] = 1
-
-    return F0, F1, D
+    return F0, D
 
 
 def compute_v(x, A, B, L, Y, x_crit, x_max, F1):
@@ -138,13 +156,29 @@ def new_patch(cost, prob_pred, prob_food, state_increment, expected):
     return patch
 
 
-def print_vals(x_crit, x_max, F0, F1, D):
+def log_vals(t, x_crit, x_max, F0, F1, D, landscape, log=False):
+    '''Save fitness values to array for archiving'''
+
+    for x in range(0, x_max, 1):
+        # Increment y index by t*n_x for each timestep
+        y_idx = ((t-1)*(x_max))+x
+        # Fill row for t, x pair with fitness values and optimal patch index
+        landscape[y_idx, 0] = t
+        landscape[y_idx, 1] = x
+        landscape[y_idx, 2] = F0[x]
+        landscape[y_idx, 3] = F1[x]
+        landscape[y_idx, 4] = D[x]
+
+    return landscape
+
+
+def print_vals(t, x_crit, x_max, F0, F1, D):
     '''Show values for x, F0, F1, D'''
 
-    print('%3s %6s %6s %6s' % ('x', 'F0', 'F1', 'D'))
+    print('\ntime '+str(t)+'\n')
     for x in range(x_crit+1, x_max+1, 1):
         print('%3.0f, %6.3f, %6.3f, %6.3f' % (x, F0[x], F1[x], D[x]))
 
 
 if __name__ == '__main__':
-    F0, F1 = run_simulation()
+    landscape = run_simulation()
