@@ -1,30 +1,53 @@
-def simulation(n_organisms, init_state, x_crit, x_max, landscape):
+def simulation(conf, landscape, log=True):
     '''Forward simulate individuals over patch-selection fitness landscape'''
     import numpy
 
     import backward
 
+    # Backward parameters
+    n_timesteps = int(conf['n_timesteps'])
+    x_crit = int(conf['x_crit'])
+    x_max = int(conf['x_max'])
+    cost = backward.flist(conf['cost'])
+    prob_pred = backward.flist(conf['prob_pred'])
+    prob_food = backward.flist(conf['prob_food'])
+    state_increment = backward.flist(conf['state_increment'])
+
+    # Forward parameters
+    n_organisms = int(conf['n_organisms'])
+    init_state = float(conf['init_state'])
+
     # Gen number of timesteps from landscape array
-    n_timesteps = len(numpy.unique(landscape[:,0]))
+    n_timesteps = len(numpy.unique(landscape['t']))
 
     # Get list of patch dictionaries for cacluating survival
-    patches = backward.get_patches(cost, prob_pred, prob_food, state_increment,
-                                   expected)
+    patches = backward.get_patches(cost, prob_pred, prob_food, state_increment)
+
     # Initialize organisms into array
     organisms = list()
     for i in range(n_organisms):
         organisms.append(Organism(i, init_state))
 
     # Initialize output data array - row: t, organism_id, x, patch
-    locations = numpy.zeros((n_timesteps*n_organisms, 4))
+    dtypes = numpy.dtype([('t',  int),      # timestep
+                          ('id', int),    # organism id
+                          ('alive', int),  # alive
+                          ('patch', int),   # organism id
+                          ('state', float), # state
+                          ])
+
+    locations = numpy.zeros((n_timesteps)*n_organisms, dtypes)
 
     # Run simulation, with no `0` timestep
-    #TODO change things to be pythonic in indexing
-    for t in range(1, n_timesteps+1):
+    for t in range(n_timesteps):
         for i in range(len(organisms)):
             organisms[i] = traverse_landscape(t, organisms[i], x_crit, x_max,
                                               patches, landscape)
             locations = log_organism(t, n_organisms, organisms[i], locations)
+
+    # Save locastions array to binary numpy file for retrieval
+    if log:
+        numpy.save("locations.npy", locations)
 
     return locations
 
@@ -42,35 +65,40 @@ def traverse_landscape(t, o, x_crit, x_max, patches, landscape):
     '''Choose patch then process growth and mortality'''
     import numpy
 
-    # Get index for row corresponding to timestep and state
-    idx = (landscape[:,0] == t) & (landscape[:,1] == o.state)
+    # Only traverse living organisms
+    if o.alive:
+        # Get index for row corresponding to timestep and state
+        idx = (landscape['t'] == t) & (landscape['state'] == o.state)
 
-    # Move organism to optimal patch (i.e. D[x])
-    print(t, o.state, o.patch)
-    o.patch = int(landscape[idx][0][4])-1
+        # Move organism to optimal patch (i.e. D[x])
+        o.patch = int(landscape['patch'][idx])
 
-    # Reduce energey based on patch cost
-    o.state -= patches[o.patch]['cost']
+        # Find food based on patch probability of finding food
+        prob_food = patches[o.patch]['prob_food']
+        cost = patches[o.patch]['cost']
+        increment = patches[o.patch]['state_increment']
 
-    # Find food based on patch probability of finding food
-    prob_food = patches[o.patch]['prob_food']
-    food_found = numpy.random.choice([1,0], 1, p=[prob_food, 1-prob_food])
+        food_found = numpy.random.choice([1,0], 1, p=[prob_food, 1-prob_food])
 
-    # Increase state by 'state_increment' amount for patch
-    # only allow state to be increased to maximum
-    increment = patches[o.patch]['state_increment']
-    if food_found & (o.state+increment <= x_max):
-        o.state += increment
-    else:
-        o.state = float(x_max)
+        # Subtract cost, add increment if food found
+        # only allow state to be increased to maximum
+        if food_found & (o.state-cost+increment <= x_max):
+            o.state = o.state - cost + increment
+        elif food_found & (o.state-cost+increment > x_max):
+            o.state = float(x_max)
+        elif food_found == 0:
+            o.state = o.state - cost
 
-    # Kill organism if critical state reached
-    if o.state <= x_crit:
-        o.alive = False
+        # Kill organism if critical state reached
+        if o.state <= float(x_crit):
+            o.alive = 0
 
-    # Kill organism based on patch probability of predation
-    prob_pred = patches[o.patch]['prob_pred']
-    o.alive = numpy.random.choice([1,0], 1, p=[1-prob_pred, prob_pred])
+        # Kill organism based on patch probability of predation
+        prob_pred = patches[o.patch]['prob_pred']
+        alive = numpy.random.choice([1,0], 1, p=[1-prob_pred, prob_pred])
+        # if died from starvation or predation, set dead
+        if (o.alive==0) | (alive==0):
+            o.alive = 0
 
     return o
 
@@ -87,46 +115,33 @@ def log_organism(t, n_organisms, o, locations):
     '''
 
     # Increment y index by t*n_organisms + organism id for each timestep
-    y_idx = ((t-1)*n_organisms)+o.id
+    idx = (t*n_organisms)+o.id
 
     # Fill row with t, organism id, current state, and current patch
-    locations[y_idx, 0] = t
-    locations[y_idx, 1] = o.id
-    locations[y_idx, 2] = o.state
-    locations[y_idx, 3] = o.patch
+    locations['t'][idx] = t
+    locations['id'][idx] = o.id
+    locations['alive'][idx] = o.alive
+    locations['patch'][idx] = o.patch
+    locations['state'][idx] = o.state
 
     return locations
 
 
-if __name__ == '__main__':
+def print_locations(locations):
+    '''Print rows of locations array for cleaner viewing'''
 
-    import numpy
+    for i, (t, id, alive, patch, state) in enumerate(locations):
+        print('[%3i] %3i %4i %2i %2i %2i' % (i, t, id, alive, state, patch))
+
+
+if __name__ == '__main__':
 
     import backward
 
-    # Backward - state parameters
-    n_timesteps = 20 # T / "Horizon" / max. time-step
-    x_crit = 3 # critical state value, forager dies
-    x_max = 10 # max state value, at energy capacity
+    # Read config file
+    config_file = 'simulations.cfg'
+    conf = backward.get_conf(config_file, 'DEFAULT')
 
-    # Backward - patch parameters
-    cost = [1, 1, 1] # alpha
-    prob_pred = [0.000, 0.004, 0.020] # beta
-    prob_food = [0.0, 0.4, 0.6] # lambda
-    state_increment = [0, 3, 5] # epsilon
-    expected = [0.0, 1.2, 3.3]
+    landscape = backward.simulation(conf, display=False, log=False)
 
-    # Forward - parameters
-    n_organisms = 50
-    init_state = 6.0
-
-    try:
-        landscape = numpy.load('landscape.npy')
-    except:
-        landscape = backward.simulation(n_timesteps, x_crit, x_max, cost,
-                                        prob_pred, prob_food, state_increment,
-                                        expected, display=True, log=True)
-
-    locations = simulation(n_organisms, init_state, x_crit, x_max, landscape)
-
-    # TODO visualize, bokeh?
+    locations = simulation(conf, landscape, log=True)

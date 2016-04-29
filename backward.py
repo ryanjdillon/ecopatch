@@ -1,5 +1,4 @@
-def simulation(n_timesteps, x_crit, x_max, cost, prob_pred, prob_food,
-        state_increment, expected, display=True, log=True):
+def simulation(conf, display=True, log=True):
     '''Loop through timesteps and individuals
 
     This code is written following the algorithm pseudo-code presented in Mark Mangel and
@@ -11,35 +10,45 @@ def simulation(n_timesteps, x_crit, x_max, cost, prob_pred, prob_food,
     '''
     import numpy
 
+    # Backward parameters
+    n_timesteps = int(conf['n_timesteps'])
+    x_crit = int(conf['x_crit'])
+    x_max = int(conf['x_max'])
+    cost = flist(conf['cost'])
+    prob_pred = flist(conf['prob_pred'])
+    prob_food = flist(conf['prob_food'])
+    state_increment = flist(conf['state_increment'])
+
     # Create patch array
     print('\nCreate patches...')
-    get_patches(cost, prob_pred, prob_food, state_increment, expected)
+    patches = get_patches(cost, prob_pred, prob_food, state_increment)
 
     # STEP 1 - initialize fitness arrays
     print('\nInitialize vectors...')
     F0, F1, D = init_f(x_crit, x_max)
 
     # Print and/or log fitness values
-    if display:
-        print_vals('0', x_crit, x_max, F0, F1, D)
-    if log:
-        # one row for each x in timestep - t, x, F0, F1, D
-        landscape = numpy.zeros((n_timesteps*(x_max), 5))
-        log_vals(0, x_crit, x_max, F0, F1, D, landscape)
+    dtypes = numpy.dtype([('t',  int),      # timestep
+                          ('state', float), # state
+                          ('F0', float), # state
+                          ('F1', float), # state
+                          ('patch', int),    # organism id
+                          ])
+
+    landscape = numpy.zeros(n_timesteps*(x_max), dtypes)
 
     # STEP 2 - Iterate over timesteps, getting max fitness values
-    t = n_timesteps
-    while t > 0:
+    for t in reversed(range(n_timesteps)):
         F0, D = max_v(x_crit, x_max, patches, F0, F1, D)
 
         # STEP 3 - Print/log fitness value and optimal index with t
+        landscape = log_vals(t, x_crit, x_max, F0, F1, D, landscape)
+
         if display:
             print_vals(t, x_crit, x_max, F0, F1, D)
-        if log:
-            landscape = log_vals(t, x_crit, x_max, F0, F1, D, landscape)
 
         # STEP 4 - Copy F0 to F1, updates fitness function to F(x,t,T)
-        for x in range(0, x_max+1, 1):
+        for x in range(0, x_max+1):
             F1[x] = F0[x]
 
         # STEP 5 - Reduce timestep
@@ -61,7 +70,7 @@ def init_f(x_crit, x_max):
     D  = numpy.zeros((x_max+1)) # optimal patch index
 
     # Set values of x over critical value to 1 (alive)
-    for x in range(x_crit, x_max+1, 1):
+    for x in range(x_crit, x_max+1):
         if x > x_crit:
             F1[x] = 1
 
@@ -72,8 +81,8 @@ def max_v(x_crit, x_max, patches, F0, F1, D):
     '''Iterate over one timestep'''
 
     # Calculate probability of survival for each energy reserve and patch
-    for x in range(x_crit+1, x_max+1, 1):
-        vm = 0 # max energetic state per patch
+    for x in range(x_crit+1, x_max+1):
+        vm = 0 # max fitness per patch
         for i in range(len(patches)):
             A = patches[i]['cost']
             B = patches[i]['prob_pred']
@@ -82,11 +91,13 @@ def max_v(x_crit, x_max, patches, F0, F1, D):
 
             v = compute_v(x, A, B, L, Y, x_crit, x_max, F1)
 
-            # Save maximum fitness, and index location
+            # Check if fitness greater than current max fitness
             if v > vm:
                 vm = v
                 F0[x] = v
-                D[x]  = i+1 # correct index to appear same as book
+                # Index location
+                # Note index is -1 from book (python indexing)
+                D[x]  = i
 
     return F0, D
 
@@ -125,16 +136,15 @@ def chop(x, x_crit, x_max):
     return x_out
 
 
-def get_patches(cost, prob_pred, prob_food, state_increment, expected):
+def get_patches(cost, prob_pred, prob_food, state_increment):
     '''Create a list of patch dictionaries'''
 
     patches = list()
-    for (A, B, L, Y, E) in zip(cost, prob_pred, prob_food, state_increment, expected):
+    for (A, B, L, Y) in zip(cost, prob_pred, prob_food, state_increment):
         patch = {'cost':A,
                  'prob_pred':B,
                  'prob_food':L,
                  'state_increment':Y,
-                 'expected':E
                  }
         patches.append(patch)
 
@@ -144,15 +154,15 @@ def get_patches(cost, prob_pred, prob_food, state_increment, expected):
 def log_vals(t, x_crit, x_max, F0, F1, D, landscape):
     '''Save fitness values to array for archiving'''
 
-    for x in range(0, x_max, 1):
+    for x in range(0, x_max):
         # Increment y index by t*n_x for each timestep
-        y_idx = ((t-1)*(x_max))+x
+        idx = (t*x_max)+x
         # Fill row for t, x pair with fitness values and optimal patch index
-        landscape[y_idx, 0] = t
-        landscape[y_idx, 1] = x
-        landscape[y_idx, 2] = F0[x]
-        landscape[y_idx, 3] = F1[x]
-        landscape[y_idx, 4] = D[x]
+        landscape['t'][idx] = t
+        landscape['state'][idx] = x+1
+        landscape['F0'][idx] = F0[x+1]
+        landscape['F1'][idx] = F1[x+1]
+        landscape['patch'][idx] = D[x+1]
 
     return landscape
 
@@ -161,24 +171,39 @@ def print_vals(t, x_crit, x_max, F0, F1, D):
     '''Show values for x, F0, F1, D'''
 
     print('\ntime '+str(t)+'\n')
-    for x in range(x_crit+1, x_max+1, 1):
+    for x in range(x_crit+1, x_max+1):
         print('%3.0f, %6.3f, %6.3f, %6.3f' % (x, F0[x], F1[x], D[x]))
+
+
+def print_landscape(landscape):
+    '''Print rows of landscape array for cleaner viewing'''
+
+    for i, (t, state, F0, F1, patch) in enumerate(landscape):
+        print('[%3i] %3i %3.0f %6.3f %6.3f %2i' % (i, t, state, F0, F1, patch))
+
+
+def get_conf(config_file, simulation):
+    '''Retrun configuration parameters of simulation'''
+    from configparser import ConfigParser
+
+    conf = ConfigParser()
+    conf.read(config_file)
+
+    return conf[simulation]
+
+
+def flist(string):
+    '''Converts a string in python list notation to list of floats
+
+    e.g. = '[1, 2, 3]' becomes [1.0, 2.0, 3.0]'''
+
+    return [float(x) for x in string.strip('[]').split(',')]
 
 
 if __name__ == '__main__':
 
-    # State parameters
-    n_timesteps = 20 # T / "Horizon" / max. time-step
-    x_crit = 3 # critical state value, forager dies
-    x_max = 10 # max state value, at energy capacity
+    # Read config file
+    config_file = 'simulations.cfg'
+    conf = get_conf(config_file, 'DEFAULT')
 
-    # Patch parameters
-    cost = [1, 1, 1] # alpha
-    prob_pred = [0.000, 0.004, 0.020] # beta
-    prob_food = [0.0, 0.4, 0.6] # lambda
-    state_increment = [0, 3, 5] # epsilon
-    expected = [0.0, 1.2, 3.3]
-
-    landscape = simulation(n_timesteps, x_crit, x_max, cost, prob_pred,
-                           prob_food, state_increment, expected,
-                           display=True, log=True)
+    landscape = simulation(conf, display=True, log=True)
