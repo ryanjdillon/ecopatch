@@ -26,7 +26,7 @@ def simulation(conf, landscape, log=True):
     # Initialize organisms into array
     organisms = list()
     for i in range(n_organisms):
-        organisms.append(Organism(i, init_state))
+        organisms.append(Organism(i, init_state, landscape))
 
     # Initialize output data array - row: t, organism_id, x, patch
     dtypes = numpy.dtype([('t',  int),      # timestep
@@ -41,9 +41,10 @@ def simulation(conf, landscape, log=True):
     # Run simulation, with no `0` timestep
     for t in range(n_timesteps):
         for i in range(len(organisms)):
-            organisms[i] = traverse_landscape(t, organisms[i], x_crit, x_max,
-                                              patches, landscape)
             locations = log_organism(t, n_organisms, organisms[i], locations)
+            organisms[i] = traverse_landscape(t, organisms[i], n_timesteps-1,
+                                              x_crit, x_max, patches,
+                                              landscape)
 
     # Save locastions array to binary numpy file for retrieval
     if log:
@@ -54,24 +55,26 @@ def simulation(conf, landscape, log=True):
 
 class Organism(object):
     '''Organisms class for optimization patch selection model'''
-    def __init__(self, i, init_state):
+    #TODO implement option of manually specifying patch
+    def __init__(self, i, init_state, landscape):
+        idx = (landscape['state']==init_state) & (landscape['t']==0)
         self.id = i
         self.alive = True
-        self.patch = None
+        self.patch = int(landscape[idx]['patch'])
         self.state = init_state
 
 
-def traverse_landscape(t, o, x_crit, x_max, patches, landscape):
+def traverse_landscape(t, o, t_max, x_crit, x_max, patches, landscape):
     '''Choose patch then process growth and mortality'''
     import numpy
 
-    # Only traverse living organisms
-    if o.alive:
-        # Get index for row corresponding to timestep and state
-        idx = (landscape['t'] == t) & (landscape['state'] == o.state)
+    # Get index for row corresponding to timestep and state
+    idx = (landscape['t'] == t) & (landscape['state'] == o.state)
+    # Move organism to optimal patch (i.e. D[x])
+    o.patch = int(landscape[idx]['patch'])
 
-        # Move organism to optimal patch (i.e. D[x])
-        o.patch = int(landscape['patch'][idx])
+    # Only update feeding and mortality for living organisms
+    if o.alive==True:
 
         # Find food based on patch probability of finding food
         prob_food = patches[o.patch]['prob_food']
@@ -91,28 +94,20 @@ def traverse_landscape(t, o, x_crit, x_max, patches, landscape):
 
         # Kill organism if critical state reached
         if o.state <= float(x_crit):
-            o.alive = 0
+            o.alive = False
 
         # Kill organism based on patch probability of predation
         prob_pred = patches[o.patch]['prob_pred']
-        alive = numpy.random.choice([1,0], 1, p=[1-prob_pred, prob_pred])
+        alive_pred = numpy.random.choice([1,0], 1, p=[1-prob_pred, prob_pred])
         # if died from starvation or predation, set dead
-        if (o.alive==0) | (alive==0):
-            o.alive = 0
+        if (o.alive==False) | (alive_pred==False):
+            o.alive = False
 
     return o
 
 
 def log_organism(t, n_organisms, o, locations):
-    '''Save fitness values to array for archiving
-
-    Row index positions
-    -------------------
-    0: t
-    1: organism_id
-    2: x
-    3: patch
-    '''
+    '''Save fitness values to array for archiving'''
 
     # Increment y index by t*n_organisms + organism id for each timestep
     idx = (t*n_organisms)+o.id
@@ -131,7 +126,7 @@ def print_locations(locations):
     '''Print rows of locations array for cleaner viewing'''
 
     for i, (t, id, alive, patch, state) in enumerate(locations):
-        print('[%3i] %3i %4i %2i %2i %2i' % (i, t, id, alive, state, patch))
+        print('[%4i] %3i %4i %2i %2i %2i' % (i, t, id, alive, state, patch))
 
 
 if __name__ == '__main__':
