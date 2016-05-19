@@ -1,6 +1,8 @@
 # Backwards simulation
 
-For the forward simulation, the psudo-code from Marks book was followed with the same parameterization. These parameters are set in the config file (see README.md).
+For the forward simulation, the psudo-code from Marks book was followed with the same parameterization. These parameters are set in the config file (see [README.md](README.md)).
+
+The majority of the backwards simulation algorithm is in [`backward.py`](backward.py), with comments delimiting the sections described in the pseudo-code:
 
 ```python
     # STEP 1 - initialize fitness arrays
@@ -40,7 +42,7 @@ I managed to get the pseudo code to work without fully understanding the concept
 
 # Forward simulation
 
-I didnt see the bit about the forward simulation in the book until after I winged it. 
+I didnt see the bit about the forward simulation in the book until after I winged it. The majority of the forward simulation algorithm is in [`forward.py`](forward.py), which goes through the following steps for each timestep and organism: 
 
 ```python
     # Get index for row corresponding to timestep and state
@@ -79,7 +81,7 @@ I didnt see the bit about the forward simulation in the book until after I winge
             o.alive = False
 ```
 
-After winging it, I made a plotting app, using `Bokeh`, which revieled I had almost correct numbers, but there were still organisms in patch 1 (using `python` indexing convention), which shouldnt have been according to the optimal strategy landscape.
+After winging it, I made a plotting app, using `Bokeh`, which revieled I had almost correct numbers, but there were still organisms in patch 1 (using `python` indexing convention), which shouldnt have been according to the optimal strategy landscape. See [the readme](README.md) for directions on running it.
 
 I went to back to the book, but when reading it, it felt far more complicated than my interpretation of things, so I stopped reading. He quickly pointed out the errors, and I went and fixed them.
 
