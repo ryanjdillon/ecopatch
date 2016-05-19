@@ -5,3 +5,6 @@
 # binary files
 *.pyc
 *.npy
+
+# directories
+SAVE/
