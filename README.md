@@ -3,15 +3,23 @@
 A python implementation of the optimization patch model in Mark Mangel and Colin Whitcomb's book 'Dynamic Modeling in Behavioral Ecology' , 1998. [link](http://press.princeton.edu/titles/4309.html)
 
 ## Install
+
 ```
-git clone
+git clone git@github.com:ryanjdillon/ecopatch.git
+cd ecopatch
 pip install -r requirements.txt
 ```
+It is recommened (but not necessary) that you use python `virtualenv`. If using a "venv", then make sure to activate it before installed the dependencies with `pip`.
 
 ## Configuration
-The following parameters are set in the configuration file `simulations.cfg`:
+The default configuration is taken from Mark Mangel's book and excel demonstration of the model, with the parameters defined under the line `[DEFAULT]` in the configuration file `simulations.cfg`.
 
-### Backward simulation parameters
+Additional parameterizations can be tested by creating a new configuration group, and a new header line (e.g. `[sim]`).
+
+### Parameters
+The following parameters should be defined in each config group in the configuration file:
+
+#### Backward simulation parameters
 * **n_timesteps**: number of timesteps for the simulation
 * **x_crit**: the state value at which the animal will die
 * **x_max**: the maximum state the animal can reach through feeding, etc.
@@ -20,13 +28,10 @@ The following parameters are set in the configuration file `simulations.cfg`:
 * **prob food**: list of values corresponding to each patches' probability of finding food
 * **state_increment**: list of values corresponding to each patches' increase in state when food is found
 
-### Forward simulation parameters
+#### Forward simulation parameters
 * **n_organisms**: the number of organisms to simulate
 * **init_state**: the state each animal begins with at the start of the simulation
 
-The default configuration is taken from Mark Mangel's book and excel demonstration of the model, defined under the line `[DEFAULT]`.
-
-Additional parameterizations can be tested by creating a new configuration group, and a new header line (e.g. `[sim]`).
 
 ## Running the simulations
 This should be improved a little, but currently you can run both the backward and forward simulations, but running the `forward.py` file as a script.
