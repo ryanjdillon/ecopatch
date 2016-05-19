@@ -81,7 +81,7 @@ I didnt see the bit about the forward simulation in the book until after I winge
             o.alive = False
 ```
 
-After winging it, I made a plotting app, using `Bokeh`, which revieled I had almost correct numbers, but there were still organisms in patch 1 (using `python` indexing convention), which shouldnt have been according to the optimal strategy landscape. See [the readme](README.md) for directions on running it.
+After winging it I made a plotting app using `Bokeh` (located in [`main.py`](main.py)), which revieled I had almost correct numbers, but there were still organisms in patch 1 (using `python` indexing convention), which shouldnt have been according to the optimal strategy landscape. See [the readme](README.md#visualizing-with-bokeh) for directions on running it.
 
 I went to back to the book, but when reading it, it felt far more complicated than my interpretation of things, so I stopped reading. He quickly pointed out the errors, and I went and fixed them.
 
