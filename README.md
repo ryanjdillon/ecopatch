@@ -41,7 +41,7 @@ python forward.py
 ```
 
 This will generate the files `landscape.npy` and `locations.npy`, which are binary dumps of the simulation output data. These files can be loaded for exploration in a Python interpreter by typing the following:
-```
+```python
 import numpy
 landscape = numpy.load('landscape.npy')
 locations = numpy.load('locations.npy')
